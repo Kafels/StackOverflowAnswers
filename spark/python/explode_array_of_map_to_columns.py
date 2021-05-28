@@ -23,7 +23,7 @@ schema = StructType(
 
 # COMMAND ----------
 
-df = spark.read.format("json").load("my_data_path", schema=schema)
+df = spark.read.format("json").load("path", schema=schema)
 
 # COMMAND ----------
 
@@ -38,9 +38,10 @@ df_pivot = (df
 
 # COMMAND ----------
 
-for column, _type in df_pivot.dtypes:
-  if _type.startswith('array'):
-    df_pivot = df_pivot.withColumn(column, f.explode(column))
+array_columns = [column for column, _type in df_pivot.dtypes if _type.startswith('array')]
+df_pivot = (df_pivot
+            .withColumn('zip', f.explode(f.arrays_zip(*array_columns)))
+            .select('Url', 'Method', 'zip.*'))
 
 # COMMAND ----------
 
