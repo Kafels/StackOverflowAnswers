@@ -5,39 +5,23 @@
 
 # COMMAND ----------
 
-from pyspark.sql import Row
 from pyspark.sql.window import Window
 
 import pyspark.sql.functions as f
 
 # COMMAND ----------
 
-df = spark.createDataFrame(
-    [Row(Flag=1, value=5), Row(Flag=1, value=4), Row(Flag=1, value=3), Row(Flag=1, value=5), Row(Flag=1, value=6),
-     Row(Flag=1, value=4), Row(Flag=1, value=7), Row(Flag=1, value=5), Row(Flag=1, value=2), Row(Flag=1, value=3),
-     Row(Flag=1, value=2), Row(Flag=1, value=6), Row(Flag=1, value=9)]
-)
-
-display(df)
+df = spark.createDataFrame([(1, 5), (1, 4), (1, 3), (1, 5), (1, 6), (1, 4),
+                            (1, 7), (1, 5), (1, 2), (1, 3), (1, 2), (1, 6), (1, 9)], ('Flag', 'value'))
 
 # COMMAND ----------
 
-window = Window.partitionBy('flag')
-df = df.withColumn('row_id', f.row_number().over(window.orderBy('flag')).cast('int'))
-df = df.withColumn('values', f.collect_list('value').over(window).cast('array<int>'))
-
-display(df)
+w = Window.partitionBy('flag').orderBy(f.monotonically_increasing_id()).rowsBetween(Window.unboundedPreceding, Window.currentRow)
+df = df.withColumn('flag_values', f.collect_list('value').over(w).cast('array<int>'))
 
 # COMMAND ----------
 
-expr = "TRANSFORM(slice(values, 1, row_id), sliced_array -> sliced_array)"
-df = df.withColumn('sliced_array', f.expr(expr))
-
-display(df)
-
-# COMMAND ----------
-
-expr = "REDUCE(sliced_array, 0, (c, n) -> IF(c < 20, c + n, n))"
+expr = "REDUCE(flag_values, 0, (c, n) -> IF(c < 20, c + n, n))"
 df = df.select('flag', 'value', f.expr(expr).alias('cumsum'))
 
-display(df)
+df.show(truncate=False)
