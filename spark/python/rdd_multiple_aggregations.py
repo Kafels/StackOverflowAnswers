@@ -1,31 +1,33 @@
 # Databricks notebook source
 data = sc.parallelize([('a', 110), ('a', 120), ('a', 130), ('b', 200), ('b', 206)])
 
-
 # COMMAND ----------
 
-def sequence_operator(initial_value, element):
-    return (initial_value, element, element, element)
+def sequence_operator(accumulator, element):
+  return (accumulator[0] + 1,
+         accumulator[1] + element, 
+         min(accumulator[2], element),
+         max(accumulator[3], element))
 
 
-def combination_operator(prev, _next):
-    return (prev[0] + _next[0],
-            prev[1] + _next[1],
-            min(prev[2], _next[2]),
-            max(prev[3], _next[3]))
+def combination_operator(current_accumulator, next_accumulator):
+  return (current_accumulator[0] + next_accumulator[0],
+         current_accumulator[1] + next_accumulator[1], 
+         min(current_accumulator[2], next_accumulator[2]),
+         max(current_accumulator[3], next_accumulator[3]))
 
 
 def unpack_aggregations(data):
-    key = data[0]
-    count, _sum, _min, _max = data[1]
-    return key, count, _sum / count, _min, _max
-
+  key = data[0]
+  count, total, minimum, maximum = data[1]
+  return key, count, total / count, minimum, maximum 
 
 # COMMAND ----------
 
-aggregations = data.aggregateByKey(zeroValue=1, seqFunc=sequence_operator, combFunc=combination_operator)
+aggregations = data.aggregateByKey(zeroValue=(0, 0, float('inf'), float('-inf')), seqFunc=sequence_operator, combFunc=combination_operator)
+aggregations.collect()
+
+# COMMAND ----------
+
 mapped_data = aggregations.map(unpack_aggregations)
-
-# COMMAND ----------
-
-print(mapped_data.collect())
+mapped_data.collect()
